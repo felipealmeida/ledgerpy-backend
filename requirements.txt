@@ -1,0 +1,12 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# Data Validation
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Ledger CLI Python Bindings
+# Note: This requires ledger-cli to be installed on the system
+# Install with: apt-get install ledger (Debian/Ubuntu) or brew install ledger (macOS)
+ledger-python==1.0.0
