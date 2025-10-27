@@ -4,7 +4,7 @@
 
 from fastapi import HTTPException
 from typing import Optional, List
-from datetime import datetime
+import datetime
 from models import (
     LedgerAccount,
     LedgerBalanceResponse,
@@ -156,15 +156,15 @@ class LedgerService:
         
         return budgets
 
-    def get_account_balance(self, period: Optional[str], account: ledger.Account) -> LedgerAccount:
+    def get_account_balance(self, account: ledger.Account,
+                            before: Optional[datetime.date], after: Optional[datetime.date]) -> LedgerAccount:
         print(f'account name {account.fullname()}')
         amounts : Dict[str, Value] = {}
+        cleared_amounts : Dict[str, Value] = {}
         children : [LedgerAccount] = []
 
-        #print(f'{str(ledger.Value('BRL 0').number())}')
-        
         for a in account.accounts():
-            child = self.get_account_balance(period, a)
+            child = self.get_account_balance(a, before, after)
             print(child.get_amount_values())
             for c,amount in child.get_amount_values().items():
                 if amount.number().is_nonzero():
@@ -173,19 +173,37 @@ class LedgerService:
                         amounts[str(amount.to_amount().commodity)] = ledger.Value(f'{str(amount.to_amount().commodity)} 0')
                     print(f'adding to {account.fullname()} the amount {amount}')
                     amounts[str(amount.to_amount().commodity)] += amount
+            for c,amount in child.get_cleared_amount_values().items():
+                if amount.number().is_nonzero():
+                    if str(amount.to_amount().commodity) not in cleared_amounts:
+                        print(f'setting map to cur {amount.to_amount().commodity} to value {ledger.Value(f'{str(amount.to_amount().commodity)} 0')}')
+                        cleared_amounts[str(amount.to_amount().commodity)] = ledger.Value(f'{str(amount.to_amount().commodity)} 0')
+                    print(f'(cleared) adding to {account.fullname()} the amount {amount}')
+                    cleared_amounts[str(amount.to_amount().commodity)] += amount
             children += [child]
 
         for post in account.posts():
             if post.amount.number().is_nonzero():
-                if str(post.amount.commodity) not in amounts:
-                    print(f'setting map to cur {post.amount.commodity} to value {ledger.Value(f'{str(post.amount.commodity)} 0')}')
-                    amounts[str(post.amount.commodity)] = ledger.Value(f'{str(post.amount.commodity)} 0')
-                amounts[str(post.amount.commodity)] += post.amount
+                if (not before or post.date >= before) and (
+                    not after or post.date < after):
+                    if str(post.amount.commodity) not in amounts:
+                        amounts[str(post.amount.commodity)] = ledger.Value(f'{str(post.amount.commodity)} 0')
+                    amounts[str(post.amount.commodity)] += post.amount
+                    if str(post.state) == 'Cleared':
+                        if str(post.amount.commodity) not in cleared_amounts:
+                            cleared_amounts[str(post.amount.commodity)] = ledger.Value(f'{str(post.amount.commodity)} 0')
+
+                        cleared_amounts[str(post.amount.commodity)] += post.amount
 
         amountStrs : Dict[str, str] = {}
         for c,t in amounts.items():
             print(f'totals {str(t.number())}')
             amountStrs[c] = '0' if t.number().is_zero() else str(t.number())
+
+        cleared_amount_strs : Dict[str, str] = {}
+        for c,t in cleared_amounts.items():
+            print(f'totals {str(t.number())}')
+            cleared_amount_strs[c] = '0' if t.number().is_zero() else str(t.number())
 
         full_path = account.fullname()
         account_name = full_path.split(':')[-1] if ':' in full_path else full_path
@@ -197,36 +215,24 @@ class LedgerService:
             account=account_name,
             full_path=full_path,
             amounts=amountStrs,
+            cleared_amounts=cleared_amount_strs,
             amount_values=amounts,
+            cleared_amount_values=cleared_amounts,
             last_cleared_date=None,
             children = children
         )
 
-    def get_balance(self, period: Optional[str] = None) -> LedgerBalanceResponse:
+    def get_balance(self, before: Optional[datetime.date], after: Optional[datetime.date]) -> LedgerBalanceResponse:
         """Get balance for all accounts"""
         try:
             assert self._get_journal().valid()
             journal = self._get_journal()
-            accounts_data = []
 
-            # root = LedgerAccount(account='', full_path='', amounts={})
-            # for a in journal.master:
-            #     if not a:
-            #         continue
-            #     account = a
-
-            #     path = [root]
-
-            #     self.get_account_balance(period, account, path)
-
-            #     #for account in a:
-            #     #    if not a:
-            #     #        continue
-            root = self.get_account_balance(period, journal.master)
+            root = self.get_account_balance(journal.master, before, after)
             
             return LedgerBalanceResponse(
                 account=root,
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.datetime.now().isoformat(),
                 #total=sum(acc.amount for acc in accounts_data)
             )
             

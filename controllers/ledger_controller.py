@@ -11,6 +11,7 @@ from models import (
     BudgetResponse,
     )
 from typing import Optional
+from datetime import date
 
 router = APIRouter(prefix="/api", tags=["ledger"])
 
@@ -20,10 +21,11 @@ def create_ledger_router(ledger_service: LedgerService) -> APIRouter:
     
     @router.get("/balance", response_model=LedgerBalanceResponse)
     async def get_balance(
-        period: Optional[str] = Query(None, description="Period filter (e.g., 2025/07)")
+            before: Optional[date] = Query(None, description="Format: YYYY-MM-DD"),
+            after: Optional[date] = Query(None, description="Format: YYYY-MM-DD"),
     ):
         """Get balance for all accounts"""
-        return ledger_service.get_balance(period=period)
+        return ledger_service.get_balance(after, before)
 
     # @router.get("/balance/{account}", response_model=LedgerBalanceResponse)
     # async def get_account_balance(

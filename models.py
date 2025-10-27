@@ -10,11 +10,15 @@ class LedgerAccount(BaseModel):
     account: str
     full_path: str = Field(alias="fullPath")
     amounts: Dict[str, str]
+    cleared_amounts: Dict[str, str] = Field(alias="clearedAmounts")
     last_cleared_date: Optional[str] = Field(None, alias="lastClearedDate")
     _amount_values: Dict[str, ledger.Value] = PrivateAttr(default = [])
+    _cleared_amount_values: Dict[str, ledger.Value] = PrivateAttr(default = [])
 
     def get_amount_values(self) -> Dict[str, ledger.Value]:
         return self._amount_values
+    def get_cleared_amount_values(self) -> Dict[str, ledger.Value]:
+        return self._cleared_amount_values
 
     children: List['LedgerAccount'] = Field(default_factory=list)
 
@@ -26,17 +30,17 @@ class LedgerAccount(BaseModel):
         cls,
         *,
         amount_values: Dict[str, ledger.Value],
+        cleared_amount_values: Dict[str, ledger.Value],
         **data
     ) -> "LedgerAccount":
         obj = cls(**data)
         obj._amount_values = amount_values
+        obj._cleared_amount_values = cleared_amount_values
         return obj
 
 class LedgerBalanceResponse(BaseModel):
     account: LedgerAccount
     timestamp: str
-    #total: float
-
 
 class LedgerTransactionNode(BaseModel):
     date: str
