@@ -162,38 +162,46 @@ class LedgerService:
         amounts : Dict[str, Value] = {}
         cleared_amounts : Dict[str, Value] = {}
         children : [LedgerAccount] = []
+        pool = ledger.commodities
+
+        now = datetime.datetime.now()
 
         for a in account.accounts():
             child = self.get_account_balance(a, before, after)
             print(child.get_amount_values())
-            for c,amount in child.get_amount_values().items():
+            for commodity,amount in child.get_amount_values().items():
                 if amount.number().is_nonzero():
-                    if str(amount.to_amount().commodity) not in amounts:
-                        print(f'setting map to cur {amount.to_amount().commodity} to value {ledger.Value(f'{str(amount.to_amount().commodity)} 0')}')
-                        amounts[str(amount.to_amount().commodity)] = ledger.Value(f'{str(amount.to_amount().commodity)} 0')
-                    print(f'adding to {account.fullname()} the amount {amount}')
-                    amounts[str(amount.to_amount().commodity)] += amount
-            for c,amount in child.get_cleared_amount_values().items():
+                    if commodity not in amounts:
+                        print(f'setting map to cur {commodity} to value {ledger.Value(f'{str(commodity)} 0')}')
+                        amounts[str(commodity)] = ledger.Value(f'{str(commodity)} 0')
+                    print(f'adding to {account.fullname()} the amount {amount} is_amount? {amount.is_amount()}')
+                    amounts[str(commodity)] += amount
+            for commodity,amount in child.get_cleared_amount_values().items():
                 if amount.number().is_nonzero():
-                    if str(amount.to_amount().commodity) not in cleared_amounts:
-                        print(f'setting map to cur {amount.to_amount().commodity} to value {ledger.Value(f'{str(amount.to_amount().commodity)} 0')}')
-                        cleared_amounts[str(amount.to_amount().commodity)] = ledger.Value(f'{str(amount.to_amount().commodity)} 0')
+                    if str(commodity) not in cleared_amounts:
+                        print(f'setting map to cur {commodity} to value {ledger.Value(f'{str(commodity)} 0')}')
+                        cleared_amounts[str(commodity)] = ledger.Value(f'{str(commodity)} 0')
                     print(f'(cleared) adding to {account.fullname()} the amount {amount}')
-                    cleared_amounts[str(amount.to_amount().commodity)] += amount
+                    cleared_amounts[str(commodity)] += amount;
             children += [child]
 
         for post in account.posts():
             if post.amount.number().is_nonzero():
                 if (not before or post.date >= before) and (
                     not after or post.date < after):
-                    if str(post.amount.commodity) not in amounts:
-                        amounts[str(post.amount.commodity)] = ledger.Value(f'{str(post.amount.commodity)} 0')
-                    amounts[str(post.amount.commodity)] += post.amount
-                    if str(post.state) == 'Cleared':
-                        if str(post.amount.commodity) not in cleared_amounts:
-                            cleared_amounts[str(post.amount.commodity)] = ledger.Value(f'{str(post.amount.commodity)} 0')
+                    amount = post.amount
+                    if str(amount.commodity) == 'kg' or str(amount.commodity) == 'un':
+                        amount = post.given_cost if post.given_cost else post.amount
+                    if str(amount.commodity) not in amounts:
+                        amounts[str(amount.commodity)] = ledger.Value(f'{str(amount.commodity)} 0')
 
-                        cleared_amounts[str(post.amount.commodity)] += post.amount
+                    print(f'add amount {str(amount)} to commodity {amount.commodity}')
+                    amounts[str(amount.commodity)] += amount
+
+                    if str(post.state) == 'Cleared':
+                        if str(amount.commodity) not in cleared_amounts:
+                            cleared_amounts[str(amount.commodity)] = ledger.Value(f'{str(amount.commodity)} 0')
+                        cleared_amounts[str(amount.commodity)] += amount
 
         amountStrs : Dict[str, str] = {}
         for c,t in amounts.items():
