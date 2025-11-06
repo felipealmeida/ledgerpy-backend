@@ -38,6 +38,15 @@ class LedgerAccount(BaseModel):
         obj._cleared_amount_values = cleared_amount_values
         return obj
 
+class LedgerPrice(BaseModel):
+    what: str
+    amounts: Dict[str, str]
+    is_commodity: bool
+
+class LedgerPriceResponse(BaseModel):
+    prices: List[LedgerPrice]
+    timestamp: str
+
 class LedgerBalanceResponse(BaseModel):
     account: LedgerAccount
     timestamp: str

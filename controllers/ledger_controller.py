@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Path
 from services.ledger_service import LedgerService
 from models import (
     LedgerBalanceResponse,
+    LedgerPriceResponse,
     LedgerTransactionResponse,
     LedgerSubTotalsResponse,
     BudgetResponse,
@@ -28,6 +29,18 @@ def create_ledger_router(ledger_service: LedgerService) -> APIRouter:
         """Get balance for all accounts"""
         try:
             return ledger_service.get_balance(after, before)
+        except Exception:
+            traceback.print_exc()
+    
+            trace = traceback.format_exc()
+            print(trace)            
+            raise
+
+    @router.get("/prices", response_model=LedgerPriceResponse)
+    async def get_prices():
+        """Get prices for everything in Despesas:Supermercado:* and commodities"""
+        try:
+            return ledger_service.get_prices()
         except Exception:
             traceback.print_exc()
     

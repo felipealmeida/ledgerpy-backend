@@ -8,6 +8,7 @@ import datetime
 from models import (
     LedgerAccount,
     LedgerBalanceResponse,
+    LedgerPriceResponse,
     LedgerTransactionResponse,
     LedgerTransactionNode,
     LedgerSubTotalNode,
@@ -19,6 +20,7 @@ import ledger
 import logging
 import traceback
 from typing import Dict
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +250,80 @@ class LedgerService:
             tb_str = traceback.format_exc()
             logging.error("Something went wrong:\n%s", tb_str)
             logging.error(f"Failed to get balance: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    def get_prices(self) -> LedgerPriceResponse:
+        """Get prices for everything in Despesas:Supermercado:* and commodities"""
+        try:
+            print(f'get_prices')
+            assert self._get_journal().valid()
+            journal = self._get_journal()
+            print(f'get_prices')
+            latest_prices = defaultdict(dict)
+
+            for post in journal.query(""):
+                post_date = post.date
+
+                full_account = post.account.fullname()
+                account = post.account.name
+
+                #print(f'post from account {full_account}')
+        
+                # Only process Despesa:Supermercado accounts
+                if not full_account.startswith("Despesas:Supermercado:"):
+                    continue
+
+                if post.amount.has_annotation():
+                    annotation = post.amount.annotation
+
+                    if annotation.price:
+                        # Get the total price paid
+                        total_price = annotation.price
+
+                        # Store or update if this is newer
+                        if account not in latest_prices or post_date > latest_prices[account][str(total_price.commodity)]['date']:
+                            latest_prices[account][str(total_price.commodity)] = {
+                                'date': post_date,
+                                'total_price': total_price,
+                                'is_commodity': False
+                            }
+            brl = ledger.commodities.find('USDT')
+            for dest_commodity in ledger.commodities.itervalues():
+                if str(dest_commodity) == 'kg' or str(dest_commodity) == 'un':
+                    continue
+
+                for commodity in ledger.commodities.itervalues():
+                    if str(commodity) == 'kg' or str(commodity) == 'un':
+                        continue
+
+                    now = datetime.datetime.now()
+                    epoch = datetime.datetime.fromtimestamp(0, tz=datetime.timezone.utc)
+                    updated_price = commodity.find_price(dest_commodity, now, epoch)
+                
+                    if updated_price:
+                        latest_prices[str(commodity)][str(dest_commodity)] = {
+                            'date': updated_price.when,
+                            'total_price': updated_price.price,
+                            'is_commodity': True
+                            }
+
+            prices : [LedgerPrice] = []
+            for dest,inner_elem in latest_prices.items():
+                amounts = {}
+                for source,price in inner_elem.items():
+                    print(f'prices final {dest} {price}')
+                    amounts[source] = str(price['total_price'].number())
+                prices.append({ 'what': dest,
+                                'amounts': amounts,
+                                'is_commodity': price['is_commodity'],
+                               })
+            return { 'prices': prices,
+                     'timestamp': datetime.datetime.now().isoformat(), }
+
+        except Exception as e:
+            tb_str = traceback.format_exc()
+            logging.error("Something went wrong:\n%s", tb_str)
+            logging.error(f"Failed to get prices: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
     # def get_account_balance(self, account_name: str, period: Optional[str] = None) -> LedgerBalanceResponse:
